@@ -11,6 +11,7 @@ from tqdm import tqdm
 import numpy as np
 import torch
 from backbone import Embeddor
+from loss import BottleneckLoss
 from torch.utils.data import DataLoader
 from market1501 import Market1501
 
@@ -25,10 +26,16 @@ def embed():
     ## load checkpoint
     res_pth = './res'
     mod_pth = osp.join(res_pth, 'model_final.pkl')
+    states = torch.load(mod_pth)
     net = Embeddor()
-    net.load_state_dict(torch.load(mod_pth))
+    net.load_state_dict(states['net'])
     net.cuda()
     net.eval()
+    #  bottleneck_loss = BottleneckLoss(2048)
+    #  bottleneck_loss.load_state_dict(states['loss'])
+    #  bottleneck = bottleneck_loss.bottleneck
+    #  bottleneck.eval()
+    #  bottleneck.cuda()
 
     ## data loader
     query_set = Market1501('./dataset/Market-1501-v15.09.15/query',
@@ -53,7 +60,10 @@ def embed():
         embds = []
         for crop in im:
             crop = crop.cuda()
-            embds.append(net(crop)[0].detach().cpu().numpy())
+            emb = net(crop)[0]
+            #  emb = bottleneck(feat)
+            #  emb = feat
+            embds.append(emb.detach().cpu().numpy())
         embed = sum(embds) / len(embds)
         pid = ids[0].numpy()
         camid = ids[1].numpy()
@@ -72,7 +82,10 @@ def embed():
         embds = []
         for crop in im:
             crop = crop.cuda()
-            embds.append(net(crop)[0].detach().cpu().numpy())
+            emb = net(crop)[0]
+            #  emb = bottleneck(feat)
+            #  emb = feat
+            embds.append(emb.detach().cpu().numpy())
         embed = sum(embds) / len(embds)
         pid = ids[0].numpy()
         camid = ids[1].numpy()
@@ -94,6 +107,10 @@ def embed():
 
 def evaluate(embd_res, cmc_max_rank = 1):
     query_embds, query_pids, query_camids, gallery_embds, gallery_pids, gallery_camids = embd_res
+    query_embds_norm = np.linalg.norm(query_embds, 2, 1).reshape(-1, 1)
+    query_embds = query_embds / query_embds_norm
+    gallery_embds_norm = np.linalg.norm(gallery_embds, 2, 1).reshape(-1, 1)
+    gallery_embds = gallery_embds / gallery_embds_norm
 
     ## compute distance matrix
     logger.info('compute distance matrix')

@@ -70,6 +70,7 @@ def train():
     logger.info('setup model and loss')
     bottleneck_loss = BottleneckLoss(2048, num_classes)
     bottleneck_loss.cuda()
+    bottleneck_loss.train()
     net = Embeddor()
     net.cuda()
     net.train()
@@ -99,10 +100,12 @@ def train():
             optim.zero_grad()
             embs_org, embs_sft = net(imgs)
             loss1 = bottleneck_loss(embs_org, lbs)
-            loss1.backward()
-            embs_org, embs_sft = net(imgs)
+            #  loss1.backward()
+            #  embs_org, embs_sft = net(imgs)
             loss2 = bottleneck_loss(embs_sft, lbs)
-            loss2.backward()
+            loss = loss1 + loss2
+            loss.backward()
+            #  loss2.backward()
             optim.step()
 
             loss = loss1.cpu().item() + loss2.cpu().item()
@@ -123,7 +126,8 @@ def train():
                 t_start = t_end
 
     ## save model
-    torch.save(net.state_dict(), './res/model_final.pkl')
+    state_dict = dict(net=net.state_dict(), loss=bottleneck_loss.state_dict())
+    torch.save(state_dict, './res/model_final.pkl')
     logger.info('\nTraining done, model saved to {}\n\n'.format('./res/model_final.pkl'))
 
 

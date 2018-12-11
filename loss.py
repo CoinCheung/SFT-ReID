@@ -8,7 +8,7 @@ import torch.nn as nn
 
 
 class AMSoftmax(nn.Module):
-    def __init__(self, in_feats, n_classes, m=0.3, s=15, *args, **kwargs):
+    def __init__(self, in_feats, n_classes=10, m=0.3, s=15, *args, **kwargs):
         super(AMSoftmax, self).__init__()
         self.m = m
         self.s = s
@@ -35,22 +35,31 @@ class AMSoftmax(nn.Module):
         return loss
 
 
-
-class BottleneckLoss(nn.Module):
-    def __init__(self, in_feats, n_classes, *args, **kwargs):
-        super(BottleneckLoss, self).__init__(*args, **kwargs)
+class Bottleneck(nn.Module):
+    def __init__(self, in_feats, *args, **kwargs):
+        super(Bottleneck, self).__init__(*args, **kwargs)
         self.dense = nn.Linear(in_feats, 512)
         self.bn = nn.BatchNorm1d(512)
         self.prelu = nn.PReLU()
-        self.am_softmax = AMSoftmax(512, n_classes)
         nn.init.kaiming_normal_(self.dense.weight, a=1)
         nn.init.constant_(self.dense.bias, 0)
 
-    def forward(self, x, label):
+    def forward(self, x):
         x = self.dense(x)
         x = self.bn(x)
-        x = self.prelu(x)
-        loss = self.am_softmax(x, label)
+        out = self.prelu(x)
+        return out
+
+
+class BottleneckLoss(nn.Module):
+    def __init__(self, in_feats, n_classes=751, *args, **kwargs):
+        super(BottleneckLoss, self).__init__(*args, **kwargs)
+        self.bottleneck = Bottleneck(in_feats)
+        self.am_softmax = AMSoftmax(512, n_classes)
+
+    def forward(self, x, label):
+        out = self.bottleneck(x)
+        loss = self.am_softmax(out, label)
         return loss
 
 
