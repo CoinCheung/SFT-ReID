@@ -22,13 +22,13 @@ logfile = 'sft_reid-{}.log'.format(time.strftime('%Y-%m-%d-%H-%M-%S'))
 logfile = os.path.join('res', logfile)
 FORMAT = '%(levelname)s %(filename)s(%(lineno)d): %(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT, filename=logfile)
+logging.root.addHandler(logging.StreamHandler())
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
 
 
 
 def lr_scheduler(epoch, optimizer):
-    ## warmup epoch or iter ?
+    ## TODO: warmup epoch or iter ?
     warmup_epoch = 20
     warmup_lr = 1e-3
     lr_steps = [80, 100]
@@ -89,26 +89,21 @@ def train():
     n_epochs = 140
     t_start = time.time()
     loss_it = []
-    it = 0
     for ep in range(n_epochs):
         optim, lrs = lr_scheduler(ep, optim)
-        for imgs, lbs, _ in dl:
-            it += 1
+        for it, (imgs, lbs, _) in enumerate(dl):
             imgs = imgs.cuda()
             lbs = lbs.cuda()
 
             optim.zero_grad()
             embs_org, embs_sft = net(imgs)
-            loss1 = bottleneck_loss(embs_org, lbs)
-            #  loss1.backward()
-            #  embs_org, embs_sft = net(imgs)
-            loss2 = bottleneck_loss(embs_sft, lbs)
-            loss = loss1 + loss2
+            loss_org = bottleneck_loss(embs_org, lbs)
+            loss_sft = bottleneck_loss(embs_sft, lbs)
+            loss = loss_org + loss_sft
             loss.backward()
-            #  loss2.backward()
             optim.step()
 
-            loss = loss1.cpu().item() + loss2.cpu().item()
+            loss = loss.cpu().item()
             loss_it.append(loss)
             if it % 10 == 0 and not it == 0:
                 t_end = time.time()
@@ -126,9 +121,12 @@ def train():
                 t_start = t_end
 
     ## save model
-    state_dict = dict(net=net.state_dict(), loss=bottleneck_loss.state_dict())
-    torch.save(state_dict, './res/model_final.pkl')
-    logger.info('\nTraining done, model saved to {}\n\n'.format('./res/model_final.pkl'))
+    if hasattr(net, 'module'):
+        state_dict = net.module.state_dict()
+    else:
+        state_dict = net.state_dict()
+    torch.save(state_dict, './res/model_final.pth')
+    logger.info('\nTraining done, model saved to {}\n\n'.format('./res/model_final.pth'))
 
 
 if __name__ == '__main__':

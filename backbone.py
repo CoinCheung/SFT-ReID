@@ -8,23 +8,10 @@ import torch.nn.functional as F
 import torchvision
 import torch.utils.model_zoo as model_zoo
 
+from sft import SFT_torch
+
 
 resnet50_url = 'https://download.pytorch.org/models/resnet50-19c8e357.pth'
-
-
-class SFT(nn.Module):
-    def __init__(self, sigma=0.1, *args, **kwargs):
-        super(SFT, self).__init__(*args, **kwargs)
-        self.sigma = sigma
-
-    def forward(self, emb_org):
-        emb_org_norm = torch.norm(emb_org, 2, 1, True).clamp(min=1e-12)
-        emb_org_norm = torch.div(emb_org, emb_org_norm)
-        W = torch.mm(emb_org_norm, emb_org_norm.t())
-        W = torch.div(W, self.sigma)
-        T = F.softmax(W, 1)
-        emb_sft = torch.mm(T, emb_org)
-        return emb_sft
 
 
 
@@ -41,7 +28,7 @@ class Embeddor(nn.Module):
         self.layer2 = create_layer(256, 128, 4, stride=2)
         self.layer3 = create_layer(512, 256, 6, stride=2)
         self.layer4 = create_layer(1024, 512, 3, stride=1)
-        self.sft = SFT(sigma=0.1)
+        self.sft = SFT_torch(sigma=0.1)
 
         # load pretrained weights and initialize added weight
         pretrained_state = model_zoo.load_url(resnet50_url)

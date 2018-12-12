@@ -26,5 +26,3 @@ This will train the model and save the parameters to the directory of ```res/```
     $ python evaluate.py
 ```
 This will embed the gallery and query set, and then compute cmc and mAP.
-
-

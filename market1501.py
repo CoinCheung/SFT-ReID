@@ -17,7 +17,7 @@ from random_erasing import RandomErasing
 
 
 class Market1501(Dataset):
-    def __init__(self, data_pth, is_train = True, *args, **kwargs):
+    def __init__(self, data_pth, is_train=True, *args, **kwargs):
         super(Market1501, self).__init__(*args, **kwargs)
 
         ## parse image names to generate image ids
@@ -45,8 +45,8 @@ class Market1501(Dataset):
 
         ## preprocessing
         self.trans_train = transforms.Compose([
-                transforms.Resize((256, 128)),
-                #  transforms.RandomCrop((256, 128)),
+                transforms.Resize((288, 144)),
+                transforms.RandomCrop((256, 128)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),

@@ -14,6 +14,7 @@ from backbone import Embeddor
 from loss import BottleneckLoss
 from torch.utils.data import DataLoader
 from market1501 import Market1501
+from sft import SFT_np
 
 
 
@@ -25,17 +26,12 @@ logger = logging.getLogger(__name__)
 def embed():
     ## load checkpoint
     res_pth = './res'
-    mod_pth = osp.join(res_pth, 'model_final.pkl')
+    mod_pth = osp.join(res_pth, 'model_final.pth')
     states = torch.load(mod_pth)
     net = Embeddor()
-    net.load_state_dict(states['net'])
+    net.load_state_dict(states)
     net.cuda()
     net.eval()
-    #  bottleneck_loss = BottleneckLoss(2048)
-    #  bottleneck_loss.load_state_dict(states['loss'])
-    #  bottleneck = bottleneck_loss.bottleneck
-    #  bottleneck.eval()
-    #  bottleneck.cuda()
 
     ## data loader
     query_set = Market1501('./dataset/Market-1501-v15.09.15/query',
@@ -58,12 +54,11 @@ def embed():
     query_embds = []
     for i, (im, _, ids) in enumerate(tqdm(query_loader)):
         embds = []
-        for crop in im:
-            crop = crop.cuda()
-            emb = net(crop)[0]
-            #  emb = bottleneck(feat)
-            #  emb = feat
-            embds.append(emb.detach().cpu().numpy())
+        with torch.no_grad():
+            for crop in im:
+                crop = crop.cuda()
+                emb = net(crop)[0]
+                embds.append(emb.detach().cpu().numpy())
         embed = sum(embds) / len(embds)
         pid = ids[0].numpy()
         camid = ids[1].numpy()
@@ -80,12 +75,11 @@ def embed():
     gallery_embds = []
     for i, (im, _, ids) in enumerate(tqdm(gallery_loader)):
         embds = []
-        for crop in im:
-            crop = crop.cuda()
-            emb = net(crop)[0]
-            #  emb = bottleneck(feat)
-            #  emb = feat
-            embds.append(emb.detach().cpu().numpy())
+        with torch.no_grad():
+            for crop in im:
+                crop = crop.cuda()
+                emb = net(crop)[0]
+                embds.append(emb.detach().cpu().numpy())
         embed = sum(embds) / len(embds)
         pid = ids[0].numpy()
         camid = ids[1].numpy()
@@ -105,7 +99,9 @@ def embed():
     return embd_res
 
 
-def evaluate(embd_res, cmc_max_rank = 1):
+
+def evaluate(embd_res, cmc_max_rank=1, post_top_n=None):
+    sft_op = SFT_np(sigma=0.1)
     query_embds, query_pids, query_camids, gallery_embds, gallery_pids, gallery_camids = embd_res
     query_embds_norm = np.linalg.norm(query_embds, 2, 1).reshape(-1, 1)
     query_embds = query_embds / query_embds_norm
@@ -125,6 +121,7 @@ def evaluate(embd_res, cmc_max_rank = 1):
     all_aps = []
     all_cmcs = []
     for query_idx in tqdm(range(n_q)):
+        qemb = query_embds[query_idx].reshape((1, -1))
         query_pid = query_pids[query_idx]
         query_camid = query_camids[query_idx]
 
@@ -138,6 +135,14 @@ def evaluate(embd_res, cmc_max_rank = 1):
         match = matches[query_idx][keep]
 
         if not np.any(match): continue
+        ## post processing
+        if not post_top_n == None:
+            gallery_keep = gallery_embds[order][keep]
+            gallery_top_n = gallery_keep[:post_top_n]
+            gallery_top_n_sft = sft_op(gallery_top_n)
+            cosine = np.matmul(qemb, gallery_top_n_sft.T)
+            sft_order = np.argsort(-cosine)
+            match[:post_top_n] = match[:post_top_n][sft_order]
 
         ## compute cmc
         cmc = match.cumsum()
@@ -164,6 +169,7 @@ if __name__ == '__main__':
     embd_res = embed()
     with open('./res/embds.pkl', 'rb') as fr:
         embd_res = pickle.load(fr)
-
-    cmc, mAP = evaluate(embd_res)
-    print('cmc is: {}, map is: {}'.format(cmc, mAP))
+    cmc, mAP = evaluate(embd_res, post_top_n=None)
+    print('without post_processing: cmc is: {}, map is: {}'.format(cmc, mAP))
+    cmc, mAP = evaluate(embd_res, post_top_n=50)
+    print('with post_processing: cmc is: {}, map is: {}'.format(cmc, mAP))
