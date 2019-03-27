@@ -25,4 +25,7 @@ This will train the model and save the parameters to the directory of ```res/```
 ```
     $ python evaluate.py
 ```
-This will embed the gallery and query set, and then compute cmc and mAP.
+This will embed the gallery and query set, and then compute cmc and mAP.  
+
+Currently, I achieved accuracy of `93.52` rank-1, and `83.18` mAP without post-processing. If post-processing is added, the rank-1 and mAP can be `93.3` and `87.3`.
+

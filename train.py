@@ -105,20 +105,20 @@ def train():
 
             loss = loss.cpu().item()
             loss_it.append(loss)
-            if it % 10 == 0 and not it == 0:
-                t_end = time.time()
-                t_interval = t_end - t_start
-                log_loss = sum(loss_it) / len(loss_it)
-                msg = ', '.join([
-                    'epoch: {}',
-                    'iter: {}',
-                    'loss: {:.4f}',
-                    'lr: {}',
-                    'time: {:.4f}'
-                    ]).format(ep,it, log_loss, lrs, t_interval)
-                logger.info(msg)
-                loss_it = []
-                t_start = t_end
+
+        # print logging message
+        t_end = time.time()
+        t_interval = t_end - t_start
+        log_loss = sum(loss_it) / len(loss_it)
+        msg = ', '.join([
+            'epoch: {}',
+            'loss: {:.4f}',
+            'lr: {}',
+            'time: {:.4f}'
+            ]).format(ep, log_loss, lrs, t_interval)
+        logger.info(msg)
+        loss_it = []
+        t_start = t_end
 
     ## save model
     if hasattr(net, 'module'):
